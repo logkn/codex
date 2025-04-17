@@ -82,8 +82,7 @@ export default function TerminalChat({
   // ────────────────────────────────────────────────────────────────
   if (isLoggingEnabled()) {
     log(
-      `render – agent? ${Boolean(agentRef.current)} loading=${loading} items=${
-        items.length
+      `render – agent? ${Boolean(agentRef.current)} loading=${loading} items=${items.length
       }`,
     );
   }
@@ -103,6 +102,7 @@ export default function TerminalChat({
 
     agentRef.current = new AgentLoop({
       model,
+      baseUrl: config.baseUrl,
       config,
       instructions: config.instructions,
       approvalPolicy,
@@ -213,7 +213,7 @@ export default function TerminalChat({
   useEffect(() => {
     (async () => {
       const available = await getAvailableModels();
-      if (model && available.length > 0 && !available.includes(model)) {
+      if (model && available.length > 0 && !available.includes(model) && !config.baseUrl) {
         setItems((prev) => [
           ...prev,
           {
@@ -264,6 +264,7 @@ export default function TerminalChat({
               version: CLI_VERSION,
               PWD,
               model,
+              baseUrl: config.baseUrl,
               approvalPolicy,
               colorsByPolicy,
               agent,

@@ -66,6 +66,7 @@ export type MemoryConfig = {
 // Represents full runtime config, including loaded instructions.
 export type AppConfig = {
   apiKey?: string;
+  baseUrl?: string;
   model: string;
   instructions: string;
   fullAutoErrorMode?: FullAutoErrorMode;

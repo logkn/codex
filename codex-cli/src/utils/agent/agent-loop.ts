@@ -38,6 +38,7 @@ const alreadyProcessedResponses = new Set();
 
 type AgentLoopParams = {
   model: string;
+  baseUrl?: string;
   config?: AppConfig;
   instructions?: string;
   approvalPolicy: ApprovalPolicy;
@@ -54,6 +55,7 @@ type AgentLoopParams = {
 
 export class AgentLoop {
   private model: string;
+  private baseUrl?: string;
   private instructions?: string;
   private approvalPolicy: ApprovalPolicy;
   private config: AppConfig;
@@ -199,6 +201,7 @@ export class AgentLoop {
   // private cumulativeThinkingMs = 0;
   constructor({
     model,
+    baseUrl,
     instructions,
     approvalPolicy,
     // `config` used to be required.  Some unit‑tests (and potentially other
@@ -214,6 +217,7 @@ export class AgentLoop {
     onLastResponseId,
   }: AgentLoopParams & { config?: AppConfig }) {
     this.model = model;
+    this.baseUrl = baseUrl;
     this.instructions = instructions;
     this.approvalPolicy = approvalPolicy;
 
@@ -236,6 +240,7 @@ export class AgentLoop {
     // Configure OpenAI client with optional timeout (ms) from environment
     const timeoutMs = OPENAI_TIMEOUT_MS;
     const apiKey = this.config.apiKey ?? process.env["OPENAI_API_KEY"] ?? "";
+    console.log(this.baseUrl);
     this.oai = new OpenAI({
       // The OpenAI JS SDK only requires `apiKey` when making requests against
       // the official API.  When running unit‑tests we stub out all network
@@ -244,7 +249,7 @@ export class AgentLoop {
       // errors inside the SDK (it validates that `apiKey` is a non‑empty
       // string when the field is present).
       ...(apiKey ? { apiKey } : {}),
-      baseURL: OPENAI_BASE_URL,
+      baseURL: this.baseUrl || OPENAI_BASE_URL,
       defaultHeaders: {
         originator: ORIGIN,
         version: CLI_VERSION,
@@ -291,15 +296,15 @@ export class AgentLoop {
 
     const name: string | undefined = isChatStyle
       ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (item as any).function?.name
+      (item as any).function?.name
       : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (item as any).name;
+      (item as any).name;
 
     const rawArguments: string | undefined = isChatStyle
       ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (item as any).function?.arguments
+      (item as any).function?.arguments
       : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (item as any).arguments;
+      (item as any).arguments;
 
     // The OpenAI "function_call" item may have either `call_id` (responses
     // endpoint) or `id` (chat endpoint).  Prefer `call_id` if present but fall
@@ -310,8 +315,7 @@ export class AgentLoop {
     const args = parseToolCallArguments(rawArguments ?? "{}");
     if (isLoggingEnabled()) {
       log(
-        `handleFunctionCall(): name=${
-          name ?? "undefined"
+        `handleFunctionCall(): name=${name ?? "undefined"
         } callId=${callId} args=${rawArguments}`,
       );
     }
@@ -682,9 +686,8 @@ export class AgentLoop {
                         `Message: ${errCtx.message || "unknown"}`,
                       ].join(", ");
 
-                      return `⚠️  OpenAI rejected the request${
-                        reqId ? ` (request ID: ${reqId})` : ""
-                      }. Error details: ${errorDetails}. Please verify your settings and try again.`;
+                      return `⚠️  OpenAI rejected the request${reqId ? ` (request ID: ${reqId})` : ""
+                        }. Error details: ${errorDetails}. Please verify your settings and try again.`;
                     })(),
                   },
                 ],

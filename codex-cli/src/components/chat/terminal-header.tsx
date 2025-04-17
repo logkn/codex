@@ -9,6 +9,7 @@ export interface TerminalHeaderProps {
   version: string;
   PWD: string;
   model: string;
+  baseUrl: string;
   approvalPolicy: string;
   colorsByPolicy: Record<string, string | undefined>;
   agent?: AgentLoop;
@@ -20,6 +21,7 @@ const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   version,
   PWD,
   model,
+  baseUrl,
   approvalPolicy,
   colorsByPolicy,
   agent,
@@ -61,6 +63,9 @@ const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             </Text>
             <Text dimColor>
               <Text color="blueBright">↳</Text> model: <Text bold>{model}</Text>
+            </Text>
+            <Text dimColor>
+              <Text color="blueBright">↳</Text> base url: <Text bold>{baseUrl}</Text>
             </Text>
             <Text dimColor>
               <Text color="blueBright">↳</Text> approval:{" "}

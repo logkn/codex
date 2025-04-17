@@ -21,6 +21,7 @@ import {
   loadConfig,
   PRETTY_PRINT,
   INSTRUCTIONS_FILEPATH,
+  OPENAI_BASE_URL,
 } from "./utils/config";
 import { createInputItem } from "./utils/input-utils";
 import {
@@ -55,6 +56,8 @@ const cli = meow(
   Options
     -h, --help                 Show usage and exit
     -m, --model <model>        Model to use for completions (default: o4-mini)
+    -b, --base-url <url>       Base URL for OpenAI API (default: https://api.openai.com)
+    -p, --port <port>          Port for OpenAI-compatible server, if using local model(default: None)
     -i, --image <path>         Path(s) to image files to include as input
     -v, --view <rollout>       Inspect a previously saved rollout instead of starting a session
     -q, --quiet                Non-interactive mode that only prints the assistant's final output
@@ -96,6 +99,16 @@ const cli = meow(
         type: "boolean",
         aliases: ["q"],
         description: "Non-interactive quiet mode",
+      },
+      baseUrl: {
+        type: "string",
+        aliases: ["b"],
+        description: "Base URL for OpenAI API",
+      },
+      port: {
+        type: "number",
+        aliases: ["p"],
+        description: "Port for OpenAI-compatible server",
       },
       config: {
         type: "boolean",
@@ -210,11 +223,12 @@ if (!apiKey) {
   // eslint-disable-next-line no-console
   console.error(
     `\n${chalk.red("Missing OpenAI API key.")}\n\n` +
-      `Set the environment variable ${chalk.bold("OPENAI_API_KEY")} ` +
-      `and re-run this command.\n` +
-      `You can create a key here: ${chalk.bold(
-        chalk.underline("https://platform.openai.com/account/api-keys"),
-      )}\n`,
+    `Set the environment variable ${chalk.bold("OPENAI_API_KEY")} ` +
+    `and re-run this command.\n` +
+    `You can create a key here: ${chalk.bold(
+      chalk.underline("https://platform.openai.com/account/api-keys")
+    )
+    }\n`
   );
   process.exit(1);
 }
@@ -230,22 +244,30 @@ let config = loadConfig(undefined, undefined, {
 const prompt = cli.input[0];
 const model = cli.flags.model;
 const imagePaths = cli.flags.image as Array<string> | undefined;
+const port = cli.flags.port;
+
+// if baseUrl is not set, but port is set, set baseUrl to 'http://localhost:port/v1'
+if (cli.flags.baseUrl === undefined && port !== undefined) {
+  config.baseUrl = `http://localhost:${port}/v1`;
+}
 
 config = {
   apiKey,
   ...config,
   model: model ?? config.model,
+  baseUrl: cli.flags.baseUrl ?? config.baseUrl,
 };
 
 if (!(await isModelSupportedForResponses(config.model))) {
-  // eslint-disable-next-line no-console
-  console.error(
-    `The model "${config.model}" does not appear in the list of models ` +
-      `available to your account. Double‑check the spelling (use\n` +
-      `  openai models list\n` +
-      `to see the full list) or choose another model with the --model flag.`,
-  );
-  process.exit(1);
+  // only show this error if baseUrl is not set
+  if (!config.baseUrl) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `The model "${config.model}" is not supported for the current base URL "${config.baseUrl}".\n` +
+      `Please use a different model or set the base URL to "${OPENAI_BASE_URL}".`
+    );
+    process.exit(1);
+  }
 }
 
 let rollout: AppRollout | undefined;
@@ -320,8 +342,8 @@ const approvalPolicy: ApprovalPolicy =
   cli.flags.fullAuto || cli.flags.approvalMode === "full-auto"
     ? AutoApprovalMode.FULL_AUTO
     : cli.flags.autoEdit || cli.flags.approvalMode === "auto-edit"
-    ? AutoApprovalMode.AUTO_EDIT
-    : AutoApprovalMode.SUGGEST;
+      ? AutoApprovalMode.AUTO_EDIT
+      : AutoApprovalMode.SUGGEST;
 
 preloadModels();
 
@@ -364,24 +386,24 @@ function formatResponseItemForQuietMode(item: ResponseItem): string {
           return "?";
         })
         .join(" ");
-      return `${role}: ${txt}`;
+      return `${role}: ${txt} `;
     }
     case "function_call": {
       const details = parseToolCall(item);
-      return `$ ${details?.cmdReadableText ?? item.name}`;
+      return `$ ${details?.cmdReadableText ?? item.name} `;
     }
     case "function_call_output": {
       // @ts-expect-error metadata unknown on ResponseFunctionToolCallOutputItem
       const meta = item.metadata as ExecOutputMetadata;
       const parts: Array<string> = [];
       if (typeof meta?.exit_code === "number") {
-        parts.push(`code: ${meta.exit_code}`);
+        parts.push(`code: ${meta.exit_code} `);
       }
       if (typeof meta?.duration_seconds === "number") {
-        parts.push(`duration: ${meta.duration_seconds}s`);
+        parts.push(`duration: ${meta.duration_seconds} s`);
       }
       const header = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-      return `command.stdout${header}\n${item.output}`;
+      return `command.stdout${header} \n${item.output} `;
     }
     default: {
       return JSON.stringify(item);
@@ -402,6 +424,7 @@ async function runQuietMode({
 }): Promise<void> {
   const agent = new AgentLoop({
     model: config.model,
+    baseUrl: config.baseUrl,
     config: config,
     instructions: config.instructions,
     approvalPolicy,
